@@ -3,7 +3,7 @@
 Set the `DISPLAY_NAME`, `ACCESS_TOKEN` and `PROFILE` environment variables
 as seen in the `.minecraft/launcher_profiles.json` file.
 
-Required `node`.
+[Node.js](https://nodejs.org/en/) is required to run this proxy.
 
 ```bash
 # clone repo
