@@ -1,15 +1,14 @@
-import { Connection, PacketWriter, PacketReader, State } from "mcproto"
-import { createServer } from "net"
+const { Client, PacketWriter, State, Server } = require("mcproto")
 
 const PROXY_PORT = 25565
 
 const host = "2b2t.org"
 const port = 25565
 
-const displayName = process.env.DISPLAY_NAME!
+const displayName = process.env.DISPLAY_NAME
 if (!displayName) console.error("Specify DISPLAY_NAME, ACCESS_TOKEN and PROFILE environment variables"), process.exit()
 
-Connection.connect(host, port, {
+Client.connect(port, host, {
     accessToken: process.env.ACCESS_TOKEN,
     profile: process.env.PROFILE
 }).then(async conn => {
@@ -18,15 +17,13 @@ Connection.connect(host, port, {
 
     conn.send(new PacketWriter(0x0).writeString(displayName))
 
-    const loginStart = await new Promise<PacketReader>((res, rej) => {
-        conn.onLogin = res, conn.onClose = rej
-    })
+    const loginStart = await conn.nextPacket(0x2, false)
 
     const uuid = loginStart.readString(), username = loginStart.readString()
 
-    const packets: PacketReader[] = []
+    const packets = []
 
-    const onPacket = (packet: PacketReader) => {
+    conn.onPacket(packet => {
         switch (packet.id) {
             case 0x1f: return
             case 0x2f: {
@@ -36,19 +33,15 @@ Connection.connect(host, port, {
             }
         }
         packets.push(packet)
-    }
-
-    conn.onPacket = onPacket
+    })
 
     let connected = false
 
-    createServer(async socket => {
-        const client = new Connection(socket, { isServer: true })
-
+    new Server(async client => {
         await client.nextPacket()
 
         if (client.state == State.Login) {
-            if (connected) return client.disconnect()
+            if (connected) return client.end()
             connected = true
             await client.nextPacket()
             client.send(new PacketWriter(0x2).writeString(uuid).writeString(username))
@@ -56,31 +49,32 @@ Connection.connect(host, port, {
 
             for (const packet of packets) client.send(packet)
 
-            client.onPacket = packet => {
+            client.onPacket(packet => {
                 if (packet.id == 0xb) return
                 if (packet.id == 0x0) return
                 conn.send(packet)
-            }
+            })
 
-            conn.onPacket = packet => (onPacket(packet), client.send(packet))
+            const dispose = conn.onPacket(packet => client.send(packet))
 
-            client.onClose = () => {
-                conn.onPacket = onPacket
+            client.onEnd(() => {
+                dispose()
                 connected = false
-            }
+            })
         } else {
             const response = {
                 description: `${packets.length} packets`,
                 players: { online: connected ? 1 : 0, max: 1 },
                 version: { name: "1.12.2", protocol: 340 }
             }
-            client.onPacket = packet => {
+            client.onPacket(packet => {
                 if (packet.id == 0x0) {
                     client.send(new PacketWriter(0x0).writeJSON(response))
                 } else if (packet.id == 0x1) {
                     client.send(new PacketWriter(0x1).write(packet.read(8)))
                 }
-            }
+            })
         }
+
     }).listen(PROXY_PORT)
 })

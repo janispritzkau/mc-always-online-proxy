@@ -1,16 +1,11 @@
 {
   "name": "mc-always-online-proxy",
-  "version": "0.1.0",
   "private": true,
   "main": ".",
-  "scripts": {
-    "prepare": "tsc"
-  },
   "dependencies": {
-    "mcproto": "^0.4.7"
+    "mcproto": "^0.6.1"
   },
   "devDependencies": {
-    "@types/node": "^11.11.1",
-    "typescript": "^3.3.3333"
+    "@types/node": "^10.14.14"
   }
 }
